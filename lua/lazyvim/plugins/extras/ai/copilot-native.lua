@@ -1,28 +1,26 @@
 ---@diagnostic disable: missing-fields
 if lazyvim_docs then
-  -- Native inline completions don't support being shown as regular completions
-  vim.g.ai_cmp = false
-
   -- Set to `true` in your `options.lua` to enable experimental support for Next Edit Suggestions
   vim.g.copilot_nes = false
 end
 
-if LazyVim.has_extra("ai.copilot-native") then
-  if not vim.lsp.inline_completion then
-    LazyVim.error("You need Neovim >= 0.12 to use the `ai.copilot-native` extra.")
-    return {}
-  end
-  if LazyVim.has_extra("ai.copilot") then
-    LazyVim.error("Please disable the `ai.copilot` extra if you want to use `ai.copilot-native`")
+if LazyVim.has_extra("coding.nvim-cmp") then
+  if vim.lsp.inline_completion then
+    vim.g.ai_cmp = false
+  else
+    LazyVim.error("You need Neovim >= 0.12 or `coding.nvim-cmp` extra disabled to use the `ai.copilot-native` extra.")
     return {}
   end
 end
+if LazyVim.has_extra("ai.copilot") then
+  LazyVim.error("Please disable the `ai.copilot` extra if you want to use `ai.copilot-native`")
+  return {}
+end
 
-vim.g.ai_cmp = false
 local status = {} ---@type table<number, "ok" | "error" | "pending">
 
 return {
-  desc = "Native Copilot LSP integration. Requires Neovim >= 0.12",
+  desc = "Native Copilot LSP integration. Requires Neovim >= 0.12 if you are using `coding.nvim-cmp` extra",
   -- copilot-language-server
   {
     "neovim/nvim-lspconfig",
@@ -41,7 +39,7 @@ return {
             end,
           },
           -- stylua: ignore
-          keys = {
+          keys = vim.g.ai_cmp and {} or {
             {
               "<M-]>",
               function() vim.lsp.inline_completion.select({ count = 1 }) end,
@@ -59,7 +57,9 @@ return {
       },
       setup = {
         copilot = function()
-          vim.lsp.inline_completion.enable()
+          if not vim.g.ai_cmp then
+            vim.lsp.inline_completion.enable()
+          end
 
           -- Only trigger NES updates:
           -- * when leaving insert mode
@@ -91,7 +91,7 @@ return {
                 return true
               end
             end
-            if vim.lsp.inline_completion.get() then
+            if not vim.g.ai_cmp and vim.lsp.inline_completion.get() then
               -- nes_update() -- ensure nes update is triggered after inline completion
               return true
             end
@@ -117,6 +117,25 @@ return {
       )
     end,
   },
+
+  vim.g.ai_cmp and {
+    "saghen/blink.cmp",
+    optional = true,
+    dependencies = { "fang2hou/blink-copilot" },
+    opts = {
+      sources = {
+        default = { "copilot" },
+        providers = {
+          copilot = {
+            name = "copilot",
+            module = "blink-copilot",
+            score_offset = 100,
+            async = true,
+          },
+        },
+      },
+    },
+  } or { import = "foobar", enabled = false }, -- dummy import
 
   vim.g.copilot_nes
       and {
